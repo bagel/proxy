@@ -1,0 +1,58 @@
+#!/usr/bin/env python
+
+import sys
+import os
+import json
+import base64
+import urllib2
+from gevent.pywsgi import WSGIServer
+
+
+class Proxy:
+    def __init__(self, env):
+        self.env = env
+
+    def request(self, url, headers=[], postdata=None):
+        req = urllib2.Request(url="http://fetchurl.freetg.org/fetch")
+        data = {"key": "test", "url": url, "headers": headers, "postdata": postdata}
+        print data
+        data = base64.b64encode(json.dumps(data))
+        req.add_data(data)
+        rs = urllib2.urlopen(req)
+        body = rs.read()
+        headers = [ (k.title(), v) for k, v in rs.headers.items() ]
+        return (headers, body)
+
+    def proxy_url(self):
+        http_host = self.env["HTTP_HOST"]
+        http_scheme = self.env["wsgi.url_scheme"]
+        path_info = self.env["PATH_INFO"]
+        query_string = self.env["QUERY_STRING"]
+        url = path_info
+        if query_string:
+            url = url + "?" + query_string
+        return url
+        
+    def proxy(self):
+        url = self.proxy_url()
+        print url
+        postdata = None
+        if self.env["REQUEST_METHOD"] == "GET":
+            pass
+        elif self.env["REQUEST_METHOD"] == "POST":
+            postdata = self.env["wsgi.input"].read()
+        return self.request(url, postdata=postdata)
+        
+        
+
+def application(env, start_response):
+    pox = Proxy(env)
+    headers, body = pox.proxy()
+    start_response("200 OK", headers)
+    return [body]
+
+def start_server():
+    pass
+
+if __name__ == "__main__":
+    WSGIServer(('', 8080), application).serve_forever()

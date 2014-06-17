@@ -1,0 +1,47 @@
+#!/usr/bin/env python
+
+import sys
+import os
+import json
+import base64
+import urllib2
+from gevent.pywsgi import WSGIServer
+
+
+class FetchUrl(object):
+    def __init__(self, environ):
+        self.environ = environ
+
+    def get_data(self):
+        if self.environ["REQUEST_METHOD"] != "POST":
+            return -1
+        data = json.loads(base64.b64decode(self.environ["wsgi.input"].read()))
+        if data["key"] != "test":
+            return -2
+        return (data["url"], data["headers"], data["postdata"])
+
+    def fetch(self):
+        url, headers, postdata = self.get_data()
+        print url
+        req = urllib2.Request(url=url)
+        for k, v in headers:
+            req.add_header(k, v)
+        #req.add_header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.132 Safari/537.36")
+        rs = urllib2.urlopen(req)
+        body = rs.read()
+        headers = [ (k.title(), v) for k, v in rs.headers.items() ]
+        return (headers, body)
+ 
+
+
+def application(env, start_response):
+    fu = FetchUrl(env)
+    headers, body = fu.fetch()
+    start_response("200 OK", headers)
+    return [body]
+
+def start_server():
+    pass
+
+if __name__ == "__main__":
+    WSGIServer(('', 8080), application).serve_forever()
