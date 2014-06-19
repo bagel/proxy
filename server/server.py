@@ -26,24 +26,44 @@ def request_sock(request_data):
     s = socket.socket()
     request_data = request_data.split('\r\n')
     data = request_data[0].split(' ')
-    if data[0] != 'GET':
-        return "HTTP/1.1 500\r\n"
-    data_url = data[1].split('/')
-    host = data_url[2]
-    port = 80
-    if ':' in host:
-        port = int(host.split(':')[-1])
-    data_url.pop(2)
-    data_url.pop(0)
-    data[1] = '/'.join(data_url)
+    print data
+    if data[0] == 'GET':
+        data_url = data[1].split('/')
+        host = data_url[2]
+        port = 80
+        if ':' in host:
+            port = int(host.split(':')[-1])
+        data_url.pop(2)
+        data_url.pop(0)
+        data[1] = '/'.join(data_url)
+    elif data[0] == 'CONNECT':
+        host = data[1].split(':')[0]
+        port = 443   
     data = ' '.join(data)
     request_data = request_data[1:]
     request_data.insert(0, data)
+    for i in xrange(len(request_data)):
+        if re.match('Accept-Encoding', request_data[i]):
+            request_data.pop(i)
+            break
     request_data = '\r\n'.join(request_data)
     print request_data
     s.connect((host, port))
     s.send(request_data)
-    response_data = s.recv(10240)
+    fp = s.makefile()
+    response_data = ""
+    line = fp.readline()
+    while line:
+        print [line]
+        if line == '\r\n':
+            break
+        if re.match('Content-Length', line):
+            length = line.split(': ')[1].strip()
+        response_data += line
+        line = fp.readline()
+    response_data += '\r\n'
+    response_data += fp.read(int(length))
+    #print response_data
     return response_data
 
 def start_server():
@@ -59,12 +79,14 @@ def start_server():
                 request_data += recv_data
                 if len(recv_data) < 10240:
                     break
-            request_data = base64.b64decode(request_data.strip())
+            request_data = base64.b64decode(request_data)
             print request_data
             response_data = request_sock(request_data)
-            print response_data
+            #print response_data
             conn.send(base64.b64encode(response_data))
-            conn.close()
+            conn.send('\r\n\r\n')
+            if conn.recv(1024) == '\r\n':
+                conn.close()
             continue
         time.sleep(0.1)
 
