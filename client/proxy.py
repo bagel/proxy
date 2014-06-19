@@ -32,14 +32,18 @@ def start_server():
             s2 = socket.socket()
             s2.connect(('116.251.210.147', 8080))
             s2.send(base64.b64encode(request_data))
-            s2.send("\r\n")
+            s2.send("\r\n\r\n")
             response_data = ""
-            while True:
-                recv_data = s2.recv(10240)
-                response_data += recv_data
-                if len(recv_data) < 10240:
+            fp = s2.makefile()
+            line = fp.readline()
+            while line:
+                response_data += line
+                line = fp.readline()
+                if line == '\r\n':
                     break
-            print base64.b64decode(response_data)
+            s2.send('\r\n')
+            response_data = response_data.strip()
+            #print base64.b64decode(response_data)
             conn.send(base64.b64decode(response_data))
             s2.close()
             conn.close()
